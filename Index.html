@@ -1,0 +1,147 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>الكيان | ذكرياتنا</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b1120;color:#f5f7ff;font-family:Arial,sans-serif}
+header{padding:25px 18px;background:linear-gradient(135deg,#172b4d,#244f75)}
+header h1{margin:0 0 8px;font-size:30px}
+header p{margin:0;color:#d1dced}
+main{max-width:850px;margin:auto;padding:18px}
+.search,input,select{width:100%;padding:13px;margin:7px 0;border:1px solid #34445e;border-radius:10px;background:#172237;color:white;font-size:16px}
+button{padding:12px 16px;border:0;border-radius:10px;background:#4f8cff;color:white;font-size:15px;font-weight:bold;cursor:pointer}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}
+.actions button{flex:1}
+h2{font-size:21px;margin-top:25px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{padding:17px;background:#172237;border:1px solid #293953;border-radius:15px;cursor:pointer;min-width:0}
+.card .emoji{font-size:28px}
+.card h3{overflow-wrap:anywhere;margin:12px 0 5px}
+.muted{color:#aebbd0;font-size:13px}
+.panel{background:#121c2e;border:1px solid #293953;border-radius:15px;padding:16px;margin-top:15px}
+.item{padding:13px 0;border-bottom:1px solid #293953;overflow-wrap:anywhere}
+a{color:#83b6ff}
+.hidden{display:none}
+footer{text-align:center;color:#8c9bb2;padding:25px;font-size:13px}
+@media(min-width:600px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header>
+<h1>✦ الكيان</h1>
+<p>ذكرياتنا وموادنا في مكان واحد</p>
+</header>
+<main>
+<div id="home">
+<input id="search" class="search" placeholder="ابحث عن مادة..." oninput="render()">
+<div class="actions">
+<button onclick="addSubject()">＋ إضافة مادة</button>
+</div>
+<h2>📚 المواد</h2>
+<div id="subjects" class="grid"></div>
+<p id="empty" class="muted">أضف أول مادة لبدء تنظيم الذكريات.</p>
+</div>
+
+<div id="details" class="hidden">
+<button onclick="goHome()">← رجوع للمواد</button>
+<h2 id="subjectTitle"></h2>
+<div class="actions">
+<button onclick="addLink('video')">🎬 إضافة رابط فيديو</button>
+<button onclick="addLink('pdf')">📄 إضافة رابط PDF</button>
+</div>
+<div class="panel">
+<h3>🎞️ الفيديوهات</h3>
+<div id="videos"></div>
+</div>
+<div class="panel">
+<h3>📚 ملفات PDF</h3>
+<div id="pdfs"></div>
+</div>
+<p class="muted">إدارة الصور والملفات المرفوعة ستُفعّل بعد ربط التخزين الآمن.</p>
+</div>
+</main>
+<footer>الكيان © ذكرياتنا تجمعنا</footer>
+<script>
+const KEY="kayan_demo_subjects_v1";
+let subjects=[];
+let current=null;
+
+try {
+ subjects=JSON.parse(localStorage.getItem(KEY)||"[]");
+ if(!Array.isArray(subjects)) subjects=[];
+} catch(e) { subjects=[]; }
+
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(subjects));
+}
+function esc(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",
+ '"':"&quot;","'":"&#39;"
+ })[c]);
+}
+function addSubject(){
+ const name=prompt("اكتب اسم المادة:");
+ if(!name||!name.trim())return;
+ subjects.push({id:Date.now(),name:name.trim(),videos:[],pdfs:[]});
+ save();render();
+}
+function render(){
+ const q=document.getElementById("search").value.trim().toLowerCase();
+ const list=subjects.filter(s=>s.name.toLowerCase().includes(q));
+ document.getElementById("subjects").innerHTML=list.map(s=>
+ `<div class="card" onclick="openSubject(${s.id})">
+ <div class="emoji">📚</div><h3>${esc(s.name)}</h3>
+ <div class="muted">${s.videos.length} فيديو · ${s.pdfs.length} ملف PDF</div>
+ </div>`).join("");
+ document.getElementById("empty").classList.toggle("hidden",list.length>0);
+}
+function openSubject(id){
+ current=subjects.find(s=>s.id===id);
+ if(!current)return;
+ document.getElementById("home").classList.add("hidden");
+ document.getElementById("details").classList.remove("hidden");
+ document.getElementById("subjectTitle").textContent=current.name;
+ renderItems();
+}
+function renderItems(){
+ for(const type of ["videos","pdfs"]){
+ const arr=current[type];
+ document.getElementById(type).innerHTML=arr.length?arr.map((x,i)=>
+ `<div class="item"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a></div>`
+ ).join(""):'<p class="muted">لا توجد ملفات مضافة حتى الآن.</p>';
+ }
+}
+function addLink(type){
+ const name=prompt("اكتب اسم "+(type==="video"?"الفيديو":"ملف PDF")+":");
+ if(!name||!name.trim())return;
+ const url=prompt("الصق الرابط الكامل الذي يبدأ بـ https://");
+ if(!url)return;
+ try{
+ const parsed=new URL(url);
+ if(parsed.protocol!=="https:"){
+ alert("استخدم رابط HTTPS آمن.");
+ return;
+ }
+ }catch(e){
+ alert("الرابط غير صحيح. حاول مرة أخرى.");
+ return;
+ }
+ current[type==="video"?"videos":"pdfs"].push({name:name.trim(),url:url});
+ save();renderItems();render();
+}
+function goHome(){
+ current=null;
+ document.getElementById("details").classList.add("hidden");
+ document.getElementById("home").classList.remove("hidden");
+ render();
+}
+render();
+</script>
+</body>
+</html>
