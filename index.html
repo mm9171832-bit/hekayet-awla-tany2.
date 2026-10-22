@@ -40,7 +40,8 @@ footer{text-align:center;color:#8c9bb2;padding:25px;font-size:13px}
 <div id="home">
 <input id="search" class="search" placeholder="ابحث عن مادة..." oninput="render()">
 <div class="actions">
-<button onclick="addSubject()">＋ إضافة مادة</button>
+  <button onclick="addSubject()">＋ إضافة مادة</button>
+  <button onclick="openAdmin()">🔐 دخول الإدارة</button>
 </div>
 <h2>📚 المواد</h2>
 <div id="subjects" class="grid"></div>
@@ -65,7 +66,15 @@ footer{text-align:center;color:#8c9bb2;padding:25px;font-size:13px}
 <p class="muted">إدارة الصور والملفات المرفوعة ستُفعّل بعد ربط التخزين الآمن.</p>
 </div>
 </main>
-<footer>الكيان © ذكرياتنا تجمعنا</footer>
+<div id="admin" class="hidden" style="padding:18px;max-width:850px;margin:auto">
+  <button onclick="closeAdmin()">← رجوع</button>
+  <h2>⚙️ لوحة إدارة الكيان</h2>
+  <div class="panel">
+    <p>إدارة المواد</p>
+    <button onclick="addSubject()">＋ إضافة مادة</button>
+  </div>
+</div>
+ <footer>الكيان © ذكرياتنا تجمعنا</footer>
 <script>
 const KEY="kayan_demo_subjects_v1";
 let subjects=[];
@@ -141,7 +150,23 @@ function goHome(){
  document.getElementById("home").classList.remove("hidden");
  render();
 }
-render();
+function openAdmin(){
+  const code = prompt("أدخل كود الإدارة:");
+  if(code !== "232850"){
+    if(code !== null) alert("الكود غير صحيح");
+    return;
+  }
+  document.getElementById("home").classList.add("hidden");
+  document.getElementById("details").classList.add("hidden");
+  document.getElementById("admin").classList.remove("hidden");
+}
+
+function closeAdmin(){
+  document.getElementById("admin").classList.add("hidden");
+  document.getElementById("home").classList.remove("hidden");
+  render();
+ }
+ render();
 </script>
 </body>
 </html>
