@@ -13,7 +13,7 @@ header{padding:25px 18px;background:linear-gradient(135deg,#172b4d,#244f75)}
 header h1{margin:0 0 8px;font-size:30px}
 header p{margin:0;color:#d1dced}
 main{max-width:850px;margin:auto;padding:18px}
-.search,input,select{width:100%;padding:13px;margin:7px 0;border:1px solid #34445e;border-radius:10px;background:#172237;color:white;font-size:16px}
+input{width:100%;padding:13px;margin:7px 0;border:1px solid #34445e;border-radius:10px;background:#172237;color:white;font-size:16px}
 button{padding:12px 16px;border:0;border-radius:10px;background:#4f8cff;color:white;font-size:15px;font-weight:bold;cursor:pointer}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}
 .actions button{flex:1}
@@ -26,7 +26,7 @@ h2{font-size:21px;margin-top:25px}
 .panel{background:#121c2e;border:1px solid #293953;border-radius:15px;padding:16px;margin-top:15px}
 .item{padding:13px 0;border-bottom:1px solid #293953;overflow-wrap:anywhere}
 a{color:#83b6ff}
-.hidden{display:none}
+.hidden{display:none!important}
 footer{text-align:center;color:#8c9bb2;padding:25px;font-size:13px}
 @media(min-width:600px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>
@@ -36,24 +36,25 @@ footer{text-align:center;color:#8c9bb2;padding:25px;font-size:13px}
 <h1>✦ الكيان</h1>
 <p>ذكرياتنا وموادنا في مكان واحد</p>
 </header>
+
 <main>
-<div id="home">
-<input id="search" class="search" placeholder="ابحث عن مادة..." oninput="render()">
+<section id="home">
+<input id="search" placeholder="ابحث عن مادة..." oninput="render()">
 <div class="actions">
-  <button onclick="addSubject()">＋ إضافة مادة</button>
-  <button onclick="openAdmin()">🔐 دخول الإدارة</button>
+<button onclick="openAdmin()">🔐 دخول الإدارة</button>
 </div>
 <h2>📚 المواد</h2>
 <div id="subjects" class="grid"></div>
-<p id="empty" class="muted">أضف أول مادة لبدء تنظيم الذكريات.</p>
-</div>
+<p id="empty" class="muted">لا توجد مواد حتى الآن.</p>
+<p id="status" class="muted">جاري تحميل المواد...</p>
+</section>
 
-<div id="details" class="hidden">
+<section id="details" class="hidden">
 <button onclick="goHome()">← رجوع للمواد</button>
 <h2 id="subjectTitle"></h2>
 <div class="actions">
-<button onclick="addLink('video')">🎬 إضافة رابط فيديو</button>
-<button onclick="addLink('pdf')">📄 إضافة رابط PDF</button>
+<button onclick="addLink('videos')">🎬 إضافة رابط فيديو</button>
+<button onclick="addLink('pdfs')">📄 إضافة رابط PDF</button>
 </div>
 <div class="panel">
 <h3>🎞️ الفيديوهات</h3>
@@ -63,110 +64,218 @@ footer{text-align:center;color:#8c9bb2;padding:25px;font-size:13px}
 <h3>📚 ملفات PDF</h3>
 <div id="pdfs"></div>
 </div>
-<p class="muted">إدارة الصور والملفات المرفوعة ستُفعّل بعد ربط التخزين الآمن.</p>
+<p class="muted">روابط الملفات في هذه النسخة محفوظة على الجهاز الحالي.</p>
+</section>
+
+<section id="admin" class="hidden">
+<button onclick="closeAdmin()">← رجوع</button>
+<h2>⚙️ لوحة إدارة الكيان</h2>
+<div class="panel">
+<p>إدارة المواد</p>
+<button onclick="addSubject()">＋ إضافة مادة</button>
 </div>
+</section>
 </main>
-<div id="admin" class="hidden" style="padding:18px;max-width:850px;margin:auto">
-  <button onclick="closeAdmin()">← رجوع</button>
-  <h2>⚙️ لوحة إدارة الكيان</h2>
-  <div class="panel">
-    <p>إدارة المواد</p>
-    <button onclick="addSubject()">＋ إضافة مادة</button>
-  </div>
-</div>
- <footer>الكيان © ذكرياتنا تجمعنا</footer>
+
+<footer>الكيان © ذكرياتنا تجمعنا</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const KEY="kayan_demo_subjects_v1";
-let subjects=[];
-let current=null;
+const URL_DB = "https://ylgdezjbjgwaoejcdojq.supabase.co";
+const KEY_DB = "sb_publishable_C_PcHMA8lqWI_-Pwwz_OaA_l4iCDQZM";
+const LOCAL_KEY = "kayan_demo_subjects_v1";
+const db = window.supabase.createClient(URL_DB, KEY_DB);
 
-try {
- subjects=JSON.parse(localStorage.getItem(KEY)||"[]");
- if(!Array.isArray(subjects)) subjects=[];
-} catch(e) { subjects=[]; }
+let subjects = [];
+let current = null;
+let isAdmin = false;
 
-function save(){
- localStorage.setItem(KEY,JSON.stringify(subjects));
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  })[c]);
 }
-function esc(s){
- return String(s).replace(/[&<>"']/g,c=>({
- "&":"&amp;","<":"&lt;",">":"&gt;",
- '"':"&quot;","'":"&#39;"
- })[c]);
+
+function saveLocal() {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(subjects));
+  } catch(e) {
+    console.error(e);
+  }
 }
-function addSubject(){
- const name=prompt("اكتب اسم المادة:");
- if(!name||!name.trim())return;
- subjects.push({id:Date.now(),name:name.trim(),videos:[],pdfs:[]});
- save();render();
+
+function localSubjects() {
+  try {
+    const value = JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch(e) {
+    return [];
+  }
 }
-function render(){
- const q=document.getElementById("search").value.trim().toLowerCase();
- const list=subjects.filter(s=>s.name.toLowerCase().includes(q));
- document.getElementById("subjects").innerHTML=list.map(s=>
- `<div class="card" onclick="openSubject(${s.id})">
- <div class="emoji">📚</div><h3>${esc(s.name)}</h3>
- <div class="muted">${s.videos.length} فيديو · ${s.pdfs.length} ملف PDF</div>
- </div>`).join("");
- document.getElementById("empty").classList.toggle("hidden",list.length>0);
+
+async function loadSubjects() {
+  document.getElementById("status").textContent = "جاري تحميل المواد...";
+  try {
+    const {data, error} = await db
+      .from("subjects")
+      .select("id,name")
+      .order("id");
+
+    if(error) throw error;
+
+    const old = localSubjects();
+    subjects = (data || []).map(row => {
+      const saved = old.find(s => s.name === row.name);
+      return {
+        id: String(row.id),
+        name: row.name,
+        videos: saved?.videos || [],
+        pdfs: saved?.pdfs || []
+      };
+    });
+
+    saveLocal();
+    document.getElementById("status").textContent =
+      subjects.length ? "" : "لا توجد مواد. ادخل الإدارة لإضافة أول مادة.";
+    render();
+  } catch(e) {
+    console.error(e);
+    document.getElementById("status").textContent =
+      "تعذر تحميل المواد. تحقق من اتصال قاعدة البيانات وصلاحياتها.";
+    render();
+  }
 }
-function openSubject(id){
- current=subjects.find(s=>s.id===id);
- if(!current)return;
- document.getElementById("home").classList.add("hidden");
- document.getElementById("details").classList.remove("hidden");
- document.getElementById("subjectTitle").textContent=current.name;
- renderItems();
-}
-function renderItems(){
- for(const type of ["videos","pdfs"]){
- const arr=current[type];
- document.getElementById(type).innerHTML=arr.length?arr.map((x,i)=>
- `<div class="item"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a></div>`
- ).join(""):'<p class="muted">لا توجد ملفات مضافة حتى الآن.</p>';
- }
-}
-function addLink(type){
- const name=prompt("اكتب اسم "+(type==="video"?"الفيديو":"ملف PDF")+":");
- if(!name||!name.trim())return;
- const url=prompt("الصق الرابط الكامل الذي يبدأ بـ https://");
- if(!url)return;
- try{
- const parsed=new URL(url);
- if(parsed.protocol!=="https:"){
- alert("استخدم رابط HTTPS آمن.");
- return;
- }
- }catch(e){
- alert("الرابط غير صحيح. حاول مرة أخرى.");
- return;
- }
- current[type==="video"?"videos":"pdfs"].push({name:name.trim(),url:url});
- save();renderItems();render();
-}
-function goHome(){
- current=null;
- document.getElementById("details").classList.add("hidden");
- document.getElementById("home").classList.remove("hidden");
- render();
-}
-function openAdmin(){
-  const code = prompt("أدخل كود الإدارة:");
-  if(code !== "232850"){
-    if(code !== null) alert("الكود غير صحيح");
+
+async function addSubject() {
+  if(!isAdmin) {
+    alert("افتح لوحة الإدارة أولًا.");
     return;
   }
+
+  const input = prompt("اكتب اسم المادة:");
+  if(!input || !input.trim()) return;
+
+  const name = input.trim();
+  document.getElementById("status").textContent = "جاري حفظ المادة...";
+
+  try {
+    const {data, error} = await db
+      .from("subjects")
+      .insert({name})
+      .select("id,name")
+      .single();
+
+    if(error) throw error;
+
+    subjects.push({
+      id: String(data.id),
+      name: data.name,
+      videos: [],
+      pdfs: []
+    });
+
+    saveLocal();
+    render();
+    document.getElementById("status").textContent = "";
+    alert("تم حفظ المادة بنجاح!");
+  } catch(e) {
+    console.error(e);
+    document.getElementById("status").textContent = "تعذر حفظ المادة.";
+    alert("فشلت الإضافة. قد تكون صلاحيات جدول subjects غير مضبوطة.");
+  }
+}
+
+function render() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const list = subjects.filter(s => s.name.toLowerCase().includes(q));
+
+  document.getElementById("subjects").innerHTML = list.map(s =>
+    `<div class="card" onclick="openSubject('${esc(s.id)}')">
+      <div class="emoji">📚</div>
+      <h3>${esc(s.name)}</h3>
+      <div class="muted">${s.videos.length} فيديو · ${s.pdfs.length} ملف PDF</div>
+    </div>`
+  ).join("");
+
+  document.getElementById("empty").classList.toggle("hidden", list.length > 0);
+}
+
+function openSubject(id) {
+  current = subjects.find(s => s.id === String(id));
+  if(!current) return;
+
+  document.getElementById("home").classList.add("hidden");
+  document.getElementById("admin").classList.add("hidden");
+  document.getElementById("details").classList.remove("hidden");
+  document.getElementById("subjectTitle").textContent = current.name;
+  renderItems();
+}
+
+function renderItems() {
+  if(!current) return;
+
+  for(const type of ["videos","pdfs"]) {
+    const arr = current[type];
+    document.getElementById(type).innerHTML = arr.length
+      ? arr.map(x =>
+        `<div class="item"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a></div>`
+      ).join("")
+      : '<p class="muted">لا توجد ملفات مضافة حتى الآن.</p>';
+  }
+}
+
+function addLink(type) {
+  if(!current) return;
+
+  const name = prompt("اكتب اسم الملف:");
+  if(!name || !name.trim()) return;
+
+  const url = prompt("الصق رابطًا يبدأ بـ https://");
+  if(!url) return;
+
+  try {
+    if(new URL(url).protocol !== "https:") throw new Error();
+  } catch(e) {
+    alert("الرابط غير صحيح؛ استخدم HTTPS.");
+    return;
+  }
+
+  current[type].push({name:name.trim(),url});
+  saveLocal();
+  renderItems();
+  render();
+}
+
+function goHome() {
+  current = null;
+  document.getElementById("details").classList.add("hidden");
+  document.getElementById("home").classList.remove("hidden");
+  render();
+}
+
+function openAdmin() {
+  const code = prompt("أدخل كود الإدارة:");
+  if(code === null) return;
+  if(code !== "232850") {
+    alert("الكود غير صحيح.");
+    return;
+  }
+
+  isAdmin = true;
   document.getElementById("home").classList.add("hidden");
   document.getElementById("details").classList.add("hidden");
   document.getElementById("admin").classList.remove("hidden");
 }
 
-function closeAdmin(){
+function closeAdmin() {
+  isAdmin = false;
   document.getElementById("admin").classList.add("hidden");
   document.getElementById("home").classList.remove("hidden");
   render();
- }
- render();
+}
+
+loadSubjects();
 </script>
 </body>
 </html>
